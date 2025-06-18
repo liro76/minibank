@@ -1,3 +1,10 @@
+<?php
+// Pastikan koneksi.php sudah di-include di index.php utama
+// atau di awal file ini jika file ini diakses langsung. Contoh: include '../inc/koneksi.php';
+// Pastikan juga rupiah.php sudah di-include atau fungsi rupiah tersedia.
+// Contoh: include '../inc/rupiah.php';
+?>
+
 <section class="content-header">
     <h1>
         Master Data
@@ -12,7 +19,6 @@
         </li>
     </ol>
 </section>
-<!-- Main content -->
 <section class="content">
     <div class="box box-primary">
         <div class="box-header with-border">
@@ -27,7 +33,6 @@
                 </button>
             </div>
         </div>
-        <!-- /.box-header -->
         <div class="box-body">
             <div class="table-responsive">
                 <table id="example1" class="table table-bordered table-striped">
@@ -40,18 +45,19 @@
                             <th>Kelas</th>
                             <th>Status</th>
                             <th>Th Masuk</th>
-                            <th>Saldo</th>
-                            <th>Aksi</th>
+                            <th>Saldo Saat Ini</th> <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                  $no = 1;
-                  $sql = $koneksi->query("SELECT s.nis, s.nama_siswa, s.jekel, s.status, s.th_masuk, s.saldo, k.kelas 
-                  from tb_siswa s inner join tb_kelas k on s.id_kelas=k.id_kelas 
-                  order by kelas asc, nis asc");
-                  while ($data= $sql->fetch_assoc()) {
-                ?>
+                        $no = 1;
+                        // Pastikan $koneksi sudah terdefinisi (dari inc/koneksi.php)
+                        // Pastikan juga fungsi rupiah() sudah terdefinisi (dari inc/rupiah.php)
+                        $sql = $koneksi->query("SELECT s.nis, s.nama_siswa, s.jekel, s.status, s.th_masuk, s.saldo, k.kelas
+                        from tb_siswa s inner join tb_kelas k on s.id_kelas=k.id_kelas
+                        order by k.kelas asc, s.nis asc"); // Menambahkan order by untuk tampilan yang lebih rapi
+                        while ($data= $sql->fetch_assoc()) {
+                        ?>
                         <tr>
                             <td>
                                 <?php echo $no++; ?>
@@ -82,22 +88,21 @@
                                 <?php echo $data['th_masuk']; ?>
                             </td>
                             <td>
-                                <?php echo isset($data['saldo']) ? rupiah($data['saldo']) : 'Rp 0'; ?>
-                            </td>
+                                <?php echo rupiah($data['saldo']); ?> </td>
                             <td>
                                 <a href="?page=MyApp/edit_siswa&kode=<?php echo $data['nis']; ?>" title="Ubah"
-                                 class="btn btn-success">
+                                   class="btn btn-success">
                                     <i class="glyphicon glyphicon-edit"></i>
                                 </a>
                                 <a href="?page=MyApp/del_siswa&kode=<?php echo $data['nis']; ?>" onclick="return confirm('Yakin Hapus Data Ini ?')"
-                                 title="Hapus" class="btn btn-danger">
+                                   title="Hapus" class="btn btn-danger">
                                     <i class="glyphicon glyphicon-trash"></i>
                                 </a>
                             </td>
                         </tr>
                         <?php
-                  }
-                ?>
+                        }
+                        ?>
                     </tbody>
                 </table>
             </div>

@@ -127,7 +127,7 @@ INSERT INTO `tb_profil` (`id_profil`, `nama_sekolah`, `alamat`, `akreditasi`) VA
 --
 
 CREATE TABLE `tb_siswa` (
-  `nis` char(12) NOT NULL,
+  `nis` int(12) NOT NULL,
   `nama_siswa` varchar(40) NOT NULL,
   `jekel` enum('LK','PR') NOT NULL,
   `id_kelas` int(11) NOT NULL,
@@ -141,16 +141,16 @@ CREATE TABLE `tb_siswa` (
 --
 
 INSERT INTO `tb_siswa` (`nis`, `nama_siswa`, `jekel`, `id_kelas`, `status`, `th_masuk`, `saldo`) VALUES
-('12211', 'Dhifa aulia nuraini', 'PR', 17, 'Aktif', '2022', 10000),
-('12414', 'ADINDA NABILAH HELMI', 'PR', 17, 'Aktif', '2022', 0),
-('12415', 'AHMAD FARISYA MAULUDY', 'LK', 17, 'Aktif', '2022', 0),
-('12416', 'ALFI HASANAH TASYA JOHARI', 'PR', 17, 'Aktif', '2022', 0),
-('12417', 'Alviansyah Hendrawan', 'LK', 16, 'Aktif', '2022', 0),
-('12418', 'Alya Citra', 'PR', 17, 'Aktif', '2022', 0),
-('12419', 'ANDIKA PRASETYA', 'LK', 17, 'Aktif', '2022', 0),
-('12421', 'ASHYA NUR SABILA', 'PR', 17, 'Aktif', '2022', 0),
-('12422', 'AULIA PRATIWI', 'PR', 16, 'Aktif', '2022', 0),
-('12423', 'Ayuni Galih Dwi Sanjaya', 'PR', 17, 'Aktif', '2022', 50000);
+(12211, 'Dhifa aulia nuraini', 'PR', 17, 'Aktif', '2022', 10000),
+(12414, 'ADINDA NABILAH HELMI', 'PR', 17, 'Aktif', '2022', 0),
+(12415, 'AHMAD FARISYA MAULUDY', 'LK', 17, 'Aktif', '2022', 0),
+(12416, 'ALFI HASANAH TASYA JOHARI', 'PR', 17, 'Aktif', '2022', 0),
+(12417, 'Alviansyah Hendrawan', 'LK', 16, 'Aktif', '2022', 0),
+(12418, 'Alya Citra', 'PR', 17, 'Aktif', '2022', 0),
+(12419, 'ANDIKA PRASETYA', 'LK', 17, 'Aktif', '2022', 0),
+(12421, 'ASHYA NUR SABILA', 'PR', 17, 'Aktif', '2022', 0),
+(12422, 'AULIA PRATIWI', 'PR', 16, 'Aktif', '2022', 0),
+(12423, 'Ayuni Galih Dwi Sanjaya', 'PR', 17, 'Aktif', '2022', 50000);
 
 -- --------------------------------------------------------
 
@@ -160,7 +160,7 @@ INSERT INTO `tb_siswa` (`nis`, `nama_siswa`, `jekel`, `id_kelas`, `status`, `th_
 
 CREATE TABLE `tb_tabungan` (
   `id_tabungan` int(11) NOT NULL,
-  `nis` char(12) NOT NULL,
+  `nis` int(12) NOT NULL,
   `setor` int(11) NOT NULL,
   `tarik` int(11) NOT NULL,
   `tgl` date NOT NULL,
@@ -173,17 +173,17 @@ CREATE TABLE `tb_tabungan` (
 --
 
 INSERT INTO `tb_tabungan` (`id_tabungan`, `nis`, `setor`, `tarik`, `tgl`, `jenis`, `petugas`) VALUES
-(1, '12211', 30000, 0, '2025-06-08', 'ST', 'administrator'),
-(2, '12415', 10000, 0, '2025-06-08', 'ST', 'administrator'),
-(3, '12211', 0, 10000, '2025-06-08', 'TR', 'administrator'),
-(4, '12417', 10000, 0, '2025-06-11', 'ST', 'administrator'),
-(5, '12423', 50000, 0, '2025-06-11', 'ST', 'administrator'),
-(6, '12211', 0, 10000, '2025-06-11', 'TR', 'administrator'),
-(7, '12417', 0, 10000, '2025-06-11', 'TR', 'administrator'),
-(8, '12211', 0, 20000, '2025-06-11', 'TR', 'administrator'),
-(9, '12415', 0, 20000, '2025-06-11', 'TR', 'administrator'),
-(10, '12211', 20000, 0, '2025-06-11', 'ST', 'administrator'),
-(11, '12415', 10000, 0, '2025-06-11', 'ST', 'administrator');
+(1, 12211, 30000, 0, '2025-06-08', 'ST', 'administrator'),
+(2, 12415, 10000, 0, '2025-06-08', 'ST', 'administrator'),
+(3, 12211, 0, 10000, '2025-06-08', 'TR', 'administrator'),
+(4, 12417, 10000, 0, '2025-06-11', 'ST', 'administrator'),
+(5, 12423, 50000, 0, '2025-06-11', 'ST', 'administrator'),
+(6, 12211, 0, 10000, '2025-06-11', 'TR', 'administrator'),
+(7, 12417, 0, 10000, '2025-06-11', 'TR', 'administrator'),
+(8, 12211, 0, 20000, '2025-06-11', 'TR', 'administrator'),
+(9, 12415, 0, 20000, '2025-06-11', 'TR', 'administrator'),
+(10, 12211, 20000, 0, '2025-06-11', 'ST', 'administrator'),
+(11, 12415, 10000, 0, '2025-06-11', 'ST', 'administrator');
 
 --
 -- Indexes for dumped tables

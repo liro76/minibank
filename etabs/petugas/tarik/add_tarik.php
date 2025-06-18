@@ -1,6 +1,12 @@
-<?php 
+<?php
+// Pastikan koneksi.php sudah di-include di index.php utama atau di awal file ini jika diakses langsung.
+// Contoh: include '../inc/koneksi.php';
+// Pastikan juga rupiah.php sudah di-include atau fungsi rupiah tersedia.
+// Contoh: include '../inc/rupiah.php';
+
 $data_nama = $_SESSION["ses_nama"];
-date_default_timezone_set("Asia/Jakarta"); 
+
+date_default_timezone_set("Asia/Jakarta");
 $tanggal = date("Y-m-d");
 ?>
 
@@ -39,10 +45,10 @@ $tanggal = date("Y-m-d");
 
                         <div class="form-group">
                             <label>Siswa</label>
-                            <select name="nis" id="nis" class="form-control select2" style="width: 100%;">
+                            <select name="nis" id="nis_tarik" class="form-control select2" style="width: 100%;" required>
                                 <option selected="selected">-- Pilih --</option>
                                 <?php
-                                $query = "select * from tb_siswa where status='Aktif'";
+                                $query = "select nis, nama_siswa from tb_siswa where status='Aktif' ORDER BY nama_siswa ASC";
                                 $hasil = mysqli_query($koneksi, $query);
                                 while ($row = mysqli_fetch_array($hasil)) {
                                 ?>
@@ -54,13 +60,20 @@ $tanggal = date("Y-m-d");
                         </div>
 
                         <div class="form-group">
-                            <label>Saldo Tabungan</label>
-                            <input type="text" name="saldo" id="saldo" class="form-control" placeholder="Saldo" readonly>
+                            <label>Saldo Saat Ini (Rp.)</label>
+                            <input type="text" id="saldo_saat_ini_display_tarik" class="form-control" placeholder="Saldo Saat Ini" readonly>
+                            <small class="form-text text-muted">Saldo siswa sebelum penarikan.</small>
                         </div>
 
                         <div class="form-group">
-                            <label>Tarikan</label>
+                            <label>Jumlah Tarikan (Rp.)</label>
                             <input type="text" name="tarik" id="tarik" class="form-control" placeholder="Jumlah tarikan" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Estimasi Saldo Akhir (Rp.)</label>
+                            <input type="text" id="estimasi_saldo_akhir_display_tarik" class="form-control" placeholder="Estimasi Saldo Akhir" readonly>
+                            <small class="form-text text-muted">Perkiraan saldo setelah penarikan.</small>
                         </div>
 
                     </div>
@@ -77,110 +90,146 @@ $tanggal = date("Y-m-d");
 <?php
 if (isset ($_POST['Simpan'])){
 
-    $nis = $_POST['nis'];
-    $tarik = $_POST['tarik'];
-    $tarik_hasil = preg_replace("/[^0-9]/", "", $tarik);
+    $nis = (int)mysqli_real_escape_string($koneksi, $_POST['nis']);
+    $tarik_input = $_POST['tarik'];
+    $tarik_bersih = (int)preg_replace("/[^0-9]/", "", $tarik_input); // Sanitasi dan konversi ke integer
 
-    // Ambil saldo terbaru langsung dari database
-    $sql_saldo = $koneksi->query("SELECT saldo FROM tb_siswa WHERE nis='$nis' FOR UPDATE");
-    $row_saldo = $sql_saldo->fetch_assoc();
-    $saldo_terbaru = $row_saldo ? (int)$row_saldo['saldo'] : 0;
+    $sql_get_saldo = "SELECT saldo FROM tb_siswa WHERE nis='$nis' FOR UPDATE";
+    $query_get_saldo = mysqli_query($koneksi, $sql_get_saldo);
 
-    if($saldo_terbaru >= $tarik_hasil){
-        // Proses insert tarikan
-        $sql_simpan = "INSERT INTO tb_tabungan (nis,setor,tarik,tgl,jenis,petugas) VALUES (
-            '$nis',
-            '0',
-            '$tarik_hasil',
-            '$tanggal',
-            'TR',
-            '$data_nama')";
-        $query_simpan = mysqli_query($koneksi, $sql_simpan);
+    if ($query_get_saldo && mysqli_num_rows($query_get_saldo) > 0) {
+        $data_siswa_db = mysqli_fetch_assoc($query_get_saldo);
+        $saldo_sekarang = (int)$data_siswa_db['saldo']; // Pastikan saldo juga di cast ke int
 
-        // Update saldo siswa, hanya jika saldo masih cukup (double check)
-        $sql_update_saldo = "UPDATE tb_siswa SET saldo = saldo - $tarik_hasil WHERE nis = '$nis' AND saldo >= $tarik_hasil";
-        $query_update = mysqli_query($koneksi, $sql_update_saldo);
+        if($saldo_sekarang >= $tarik_bersih){
+            $saldo_baru = $saldo_sekarang - $tarik_bersih;
 
-        if ($query_simpan && mysqli_affected_rows($koneksi) > 0) {
-            echo "<script>
-            Swal.fire({title: 'Tarikan Berhasil',text: '',icon: 'success',confirmButtonText: 'OK'
-            }).then((result) => {
-                if (result.value) {
-                    window.location = 'index.php?page=data_tarik';
+            $sql_simpan_tabungan = "INSERT INTO tb_tabungan (nis,setor,tarik,tgl,jenis,petugas) VALUES (
+                '$nis',
+                '0',
+                '$tarik_bersih',
+                '$tanggal',
+                'TR',
+                '".mysqli_real_escape_string($koneksi, $data_nama)."')";
+            $query_simpan_tabungan = mysqli_query($koneksi, $sql_simpan_tabungan);
+
+            if ($query_simpan_tabungan) {
+                $sql_update_saldo_siswa = "UPDATE tb_siswa SET saldo = '$saldo_baru' WHERE nis = '$nis'";
+                $query_update_saldo_siswa = mysqli_query($koneksi, $sql_update_saldo_siswa);
+
+                if ($query_update_saldo_siswa) {
+                    echo "<script>
+                    Swal.fire({title: 'Tarikan Berhasil',text: 'Saldo siswa telah diperbarui.',icon: 'success',confirmButtonText: 'OK'
+                    }).then((result) => {if (result.value)
+                        {window.location = 'index.php?page=data_tarik';}
+                    })</script>";
+                } else {
+                    echo "<script>
+                    Swal.fire({title: 'Tarikan Gagal',text: 'Terjadi kesalahan saat memperbarui saldo siswa: " . mysqli_error($koneksi) . "',icon: 'error',confirmButtonText: 'OK'
+                    }).then((result) => {if (result.value)
+                        {window.location = 'index.php?page=add_tarik';}
+                    })</script>";
                 }
-            })</script>";
+            } else {
+                echo "<script>
+                Swal.fire({title: 'Tarikan Gagal',text: 'Terjadi kesalahan saat menyimpan transaksi penarikan: " . mysqli_error($koneksi) . "',icon: 'error',confirmButtonText: 'OK'
+                }).then((result) => {if (result.value)
+                    {window.location = 'index.php?page=add_tarik';}
+                    })</script>";
+            }
         } else {
-            // Jika gagal update saldo (karena saldo tidak cukup), rollback tarikan
-            mysqli_query($koneksi, "DELETE FROM tb_tabungan WHERE nis='$nis' AND tarik='$tarik_hasil' AND tgl='$tanggal' AND jenis='TR' ORDER BY id_tabungan DESC LIMIT 1");
             echo "<script>
-            Swal.fire({title: 'Gagal, Saldo tidak cukup',text: '',icon: 'error',confirmButtonText: 'OK'
-            }).then((result) => {
-                if (result.value) {
-                    window.location = 'index.php?page=add_tarik';
-                }
+            Swal.fire({title: 'Tarikan Gagal',text: 'Saldo tidak mencukupi! Saldo saat ini: " . rupiah($saldo_sekarang) . "',icon: 'error',confirmButtonText: 'OK'
+            }).then((result) => {if (result.value)
+                {window.location = 'index.php?page=add_tarik';}
             })</script>";
         }
-
-        mysqli_close($koneksi);
-
     } else {
         echo "<script>
-        Swal.fire({title: 'Gagal, Saldo tidak cukup',text: '',icon: 'error',confirmButtonText: 'OK'
-        }).then((result) => {
-            if (result.value) {
-                window.location = 'index.php?page=add_tarik';
-            }
+        Swal.fire({title: 'Siswa Tidak Ditemukan',text: 'NIS Siswa tidak valid atau tidak aktif.',icon: 'error',confirmButtonText: 'OK'
+        }).then((result) => {if (result.value)
+            {window.location = 'index.php?page=add_tarik';}
         })</script>";
     }
 }
 ?>
 
-<script src="././bootstrap/lookup.js"></script>  
+<script src="../../plugins/jQuery/jquery-2.2.3.min.js"></script>
+<script src="../../plugins/select2/select2.full.min.js"></script>
+<link href="../../plugins/select2/select2.min.css" rel="stylesheet" />
 <script>
-    $(document).ready(function(){  
-        $('#nis').change(function(){  
-            var nis = $(this).val();  
-            $.ajax({  
-                url:"plugins/proses-ajax.php",  
-                method:"POST",  
-                data:{nis:nis},  
-                success:function(data){  
-                    $('#saldo').val(data);  
-                }  
-            });  
-        });  
-    }); 
+    $(function () {
+        $('.select2').select2();
+    });
 </script>
 
-<script type="text/javascript">
-    var tarik = document.getElementById('tarik');
-    tarik.addEventListener('keyup', function (e) {
-        tarik.value = formattarik(this.value, 'Rp ');
-    });
+<script>
+    $(document).ready(function(){
+        function getSaldoSiswaTarik(nis_siswa) {
+            if (nis_siswa) {
+                $.ajax({
+                    url: '../../plugins/proses-ajax.php', // Perbaikan jalur untuk AJAX
+                    type: 'POST',
+                    data: {
+                        action: 'get_saldo_siswa',
+                        nis_siswa: nis_siswa
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            $('#saldo_saat_ini_display_tarik').val(formatRupiah(response.saldo));
+                            hitungEstimasiSaldoTarik();
+                        } else {
+                            $('#saldo_saat_ini_display_tarik').val('0');
+                            $('#estimasi_saldo_akhir_display_tarik').val('0');
+                            console.error('Error fetching saldo: ' + (response.message || 'Unknown error'));
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('AJAX Error: ' + status + ', ' + error + ' - Response: ' + xhr.responseText);
+                        $('#saldo_saat_ini_display_tarik').val('Error');
+                        $('#estimasi_saldo_akhir_display_tarik').val('Error');
+                    }
+                });
+            } else {
+                $('#saldo_saat_ini_display_tarik').val('');
+                $('#estimasi_saldo_akhir_display_tarik').val('');
+            }
+        }
 
-    // Validasi agar nilai tarikan tidak melebihi saldo
-    tarik.addEventListener('input', function () {
-        var saldo = document.getElementById('saldo').value.replace(/[^0-9]/g, '');
-        var tarikVal = this.value.replace(/[^0-9]/g, '');
-        if (saldo && tarikVal && parseInt(tarikVal) > parseInt(saldo)) {
-            alert('Jumlah tarikan tidak boleh melebihi saldo!');
-            this.value = '';
+        function hitungEstimasiSaldoTarik() {
+            var saldoSekarangText = <span class="math-inline">\('\#saldo\_saat\_ini\_display\_tarik'\)\.val\(\);
+var saldoSekarang \= parseInt\(saldoSekarangText\.replace\(/\[^0\-9\]/g,""\)\) \|\| 0;
+var jumlahTarik \= parseInt\(</span>('#tarik').val().replace(/[^0-9]/g,"")) || 0;
+            var estimasiSaldoAkhir = saldoSekarang - jumlahTarik;
+            $('#estimasi_saldo_akhir_display_tarik').val(formatRupiah(estimasiSaldoAkhir));
+        }
+
+        // Event listener untuk memformat input saat mengetik
+        $('#tarik').on('keyup', function() {
+            var val = $(this).val().replace(/[^0-9]/g, '');
+            $(this).val(formatRupiah(val).replace('Rp. ', ''));
+            hitungEstimasiSaldoTarik();
+        });
+
+
+        $('#nis_tarik').on('change', function() {
+            var nisSiswaTerpilih = <span class="math-inline">\(this\)\.val\(\);
+getSaldoSiswaTarik\(nisSiswaTerpilih\);
+\}\);
+<411\>function formatRupiah\(angka\)\{
+var number\_string \= angka\.<413\>toString\(\),
+sisa     		\= number\_string\.length % 3,
+rupiah     		\= number\_string\.substr\(0, sisa\),
+ribuan     		\= number\_string\.substr\(sisa\)\.match\(/\\d\{3\}/g\);</411\>
+if\(ribuan\)\{
+separator \= sisa ? '\.' \: '';
+rupiah \+\= separator \+ ribuan\.join\('\.'\);
+\}
+return 'Rp\. ' \+ rupiah;</413\>
+\}
+if \(</span>('#nis_tarik').val() && <span class="math-inline">\('\#nis\_tarik'\)\.val\(\) \!\=\= '\-\- Pilih \-\-'\) \{
+getSaldoSiswaTarik\(</span>('#nis_tarik').val());
         }
     });
-
-    function formattarik(angka, prefix) {
-        var number_string = angka.replace(/[^,\d]/g, '').toString(),
-            split = number_string.split(','),
-            sisa = split[0].length % 3,
-            tarik = split[0].substr(0, sisa),
-            ribuan = split[0].substr(sisa).match(/\d{3}/gi);
-
-        if (ribuan) {
-            separator = sisa ? '.' : '';
-            tarik += separator + ribuan.join('.');
-        }
-
-        tarik = split[1] != undefined ? tarik + ',' + split[1] : tarik;
-        return prefix == undefined ? tarik : (tarik ? 'Rp ' + tarik : '');
-    }
 </script>
