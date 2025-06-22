@@ -1,4 +1,13 @@
 <?php
+
+$sql_cek = mysqli_query($koneksi, "SELECT saldo FROM tb_siswa WHERE nis='$nis'");
+$data_cek = mysqli_fetch_array($sql_cek);
+$saldo_sekarang = $data_cek['saldo'];
+
+if ($saldo_sekarang < $tarik) {
+    // Saldo tidak cukup, tampilkan pesan error dan hentikan proses.
+    echo "<script>alert('Saldo tidak mencukupi untuk melakukan penarikan!');window.location = 'index.php?page=add_tarik';</script>";
+} else {
 // Pastikan koneksi.php sudah di-include di index.php utama atau di awal file ini jika diakses langsung.
 // Contoh: include '../inc/koneksi.php';
 // Pastikan juga rupiah.php sudah di-include atau fungsi rupiah tersedia.
@@ -233,3 +242,4 @@ getSaldoSiswaTarik\(</span>('#nis_tarik').val());
         }
     });
 </script>
+    }
