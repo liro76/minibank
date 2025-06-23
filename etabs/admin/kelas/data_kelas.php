@@ -2,7 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once '../inc/koneksi.php';
+
 
 /* token CSRF */
 if (!isset($_SESSION['csrf'])) {

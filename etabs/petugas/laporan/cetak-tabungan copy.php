@@ -1,163 +1,143 @@
 <?php
-    // Memasukkan file koneksi dan fungsi rupiah
-    include "../inc/koneksi.php";
-    include "../inc/rupiah.php";
+/* ===============================================================
+ | CETAK BUKU TABUNGAN SISWA
+ | Versi Perbaikan: Efisien, Aman, dan Rapi
+ =============================================================== */
 
-    // Validasi dan bersihkan NIS dari parameter GET untuk keamanan
-    if (isset($_GET['nis'])) {
-        $nis = mysqli_real_escape_string($koneksi, $_GET['nis']);
+// 1. INISIALISASI & KONEKSI
+require_once dirname(__DIR__, 1) . '/inc/koneksi.php';
+require_once dirname(__DIR__, 1) . '/inc/rupiah.php';
 
-        // Query untuk mengambil data siswa dan kelasnya
-        $sql_siswa = "SELECT s.nis, s.nama_siswa, k.kelas 
-                      FROM tb_siswa s 
-                      JOIN tb_kelas k ON s.id_kelas = k.id_kelas 
-                      WHERE s.nis = '$nis'";
-        $query_siswa = mysqli_query($koneksi, $sql_siswa);
-        $data_siswa = mysqli_fetch_array($query_siswa);
+date_default_timezone_set('Asia/Jakarta');
 
-        // Jika siswa dengan NIS tersebut tidak ditemukan, hentikan proses
-        if (!$data_siswa) {
-            die("Siswa dengan NIS tersebut tidak ditemukan.");
-        }
-    } else {
-        // Jika parameter NIS tidak ada di URL, hentikan proses
-        die("NIS tidak disediakan. Proses dibatalkan.");
-    }
+// 2. VALIDASI INPUT NIS DENGAN AMAN
+if (!isset($_GET['nis']) || !ctype_digit($_GET['nis'])) {
+    die('Akses tidak sah. NIS tidak valid atau tidak disediakan.');
+}
+$nis = $_GET['nis'];
+
+// 3. AMBIL DATA MASTER (Siswa & Sekolah) - HANYA 2 QUERY
+// Mengambil data siswa, kelas, dan saldo akhir resmi dalam satu query
+$stmt_siswa = $koneksi->prepare("
+    SELECT s.nis, s.nama_siswa, s.saldo, k.kelas
+    FROM tb_siswa s
+    JOIN tb_kelas k ON s.id_kelas = k.id_kelas
+    WHERE s.nis = ?
+");
+$stmt_siswa->bind_param('s', $nis);
+$stmt_siswa->execute();
+$result_siswa = $stmt_siswa->get_result();
+
+if ($result_siswa->num_rows === 0) {
+    die('Siswa dengan NIS tersebut tidak ditemukan.');
+}
+$data_siswa = $result_siswa->fetch_assoc();
+$stmt_siswa->close();
+
+// Mengambil profil sekolah
+$profil = $koneksi->query("SELECT nama_sekolah, alamat FROM tb_profil LIMIT 1")->fetch_assoc();
+$namaSekolah = $profil['nama_sekolah'] ?? 'Bank Mini Sekolah';
+$alamatSekolah = $profil['alamat'] ?? 'Alamat Sekolah Anda';
+
+
+// 4. AMBIL DETAIL TRANSAKSI - HANYA 1 QUERY
+$stmt_trx = $koneksi->prepare("
+    SELECT tgl, jenis, setor, tarik, saldo_akhir
+    FROM tb_tabungan
+    WHERE nis = ?
+    ORDER BY tgl ASC, id_tabungan ASC
+");
+$stmt_trx->bind_param('s', $nis);
+$stmt_trx->execute();
+$transactions = $stmt_trx->get_result();
+$stmt_trx->close();
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Cetak Buku Tabungan - <?php echo htmlspecialchars($data_siswa['nama_siswa']); ?></title>
+    <title>Cetak Buku Tabungan - <?= htmlspecialchars($data_siswa['nama_siswa']) ?></title>
     <style>
-        /* Gaya CSS untuk tampilan cetak yang rapi */
         body { font-family: Arial, sans-serif; font-size: 12px; }
         .container { width: 95%; margin: 0 auto; }
         .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
         .header h3, .header p { margin: 2px 0; }
-        .student-info table { width: 60%; margin-bottom: 20px; }
-        .student-info td { padding: 2px; }
+        .student-info, .summary-table { width: 100%; margin-bottom: 20px; }
+        .student-info td { padding: 3px 0; }
         .transaction-table { width: 100%; border-collapse: collapse; }
         .transaction-table th, .transaction-table td { border: 1px solid #000; padding: 6px; text-align: center; }
         .transaction-table th { background-color: #f2f2f2; }
-        .text-right { text-align: right !important; }
-        .text-left { text-align: left !important; }
-        .footer-summary { margin-top: 20px; width: 40%; float: right; }
-        .footer-summary table { width: 100%; }
-        .footer-summary td { padding: 4px; }
+        .summary-box { width: 45%; float: right; margin-top: 20px; }
+        .summary-box table { width: 100%; }
+        .summary-box td { padding: 4px; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h3>BUKU TABUNGAN SISWA</h3>
-            <?php
-                // Mengambil data profil sekolah
-                $sql_profil = $koneksi->query("SELECT * from tb_profil LIMIT 1");
-                $data_profil = $sql_profil->fetch_assoc();
-            ?>
-            <h3><?php echo htmlspecialchars($data_profil['nama_sekolah']); ?></h3>
-            <p><?php echo htmlspecialchars($data_profil['alamat']); ?></p>
-        </div>
-
-        <div class="student-info">
-            <table>
-                <tr>
-                    <td width="30%"><strong>NIS</strong></td>
-                    <td width="2%">:</td>
-                    <td><?php echo htmlspecialchars($data_siswa['nis']); ?></td>
-                </tr>
-                <tr>
-                    <td><strong>Nama Siswa</strong></td>
-                    <td>:</td>
-                    <td><?php echo htmlspecialchars($data_siswa['nama_siswa']); ?></td>
-                </tr>
-                 <tr>
-                    <td><strong>Kelas</strong></td>
-                    <td>:</td>
-                    <td><?php echo htmlspecialchars($data_siswa['kelas']); ?></td>
-                </tr>
-            </table>
-        </div>
-
-        <table class="transaction-table">
-            <thead>
-                <tr>
-                    <th>No</th>
-                    <th>Tanggal</th>
-                    <th>Keterangan</th>
-                    <th>Saldo Awal</th>
-                    <th>Setoran</th>
-                    <th>Penarikan</th>
-                    <th>Saldo Akhir</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                    $no = 1;
-                    // Query diurutkan untuk memastikan urutan transaksi benar
-                    $sql_transaksi = $koneksi->query("SELECT * FROM tb_tabungan WHERE nis='$nis' ORDER BY tgl ASC, id_tabungan ASC");
-                    while ($data_trx = $sql_transaksi->fetch_assoc()) {
-                        $keterangan = ($data_trx['jenis'] == 'ST') ? 'Setoran Tunai' : 'Penarikan Tunai';
-                ?>
-                <tr>
-                    <td><?php echo $no++; ?></td>
-                    <td><?php echo date('d-m-Y', strtotime($data_trx['tgl'])); ?></td>
-                    <td class="text-left"><?php echo $keterangan; ?></td>
-                    <td class="text-right"><?php echo rupiah($data_trx['saldo_awal']); ?></td>
-                    <td class="text-right"><?php echo rupiah($data_trx['setor']); ?></td>
-                    <td class="text-right"><?php echo rupiah($data_trx['tarik']); ?></td>
-                    <td class="text-right"><b><?php echo rupiah($data_trx['saldo_akhir']); ?></b></td>
-                </tr>
-                <?php
-                    }
-                ?>
-            </tbody>
-        </table>
-
-        <div class="footer-summary">
-             <table>
-                <tr>
-                    <td><strong>Total Setoran</strong></td>
-                    <td class="text-right">
-                        <?php
-                            $sql_setor = $koneksi->query("SELECT SUM(setor) as Tsetor from tb_tabungan where nis='$nis'");
-                            $data_setor = $sql_setor->fetch_assoc();
-                            echo rupiah($data_setor['Tsetor']);
-                        ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td><strong>Total Penarikan</strong></td>
-                    <td class="text-right">
-                        <?php
-                            $sql_tarik = $koneksi->query("SELECT SUM(tarik) as Ttarik from tb_tabungan where nis='$nis'");
-                            $data_tarik = $sql_tarik->fetch_assoc();
-                            echo rupiah($data_tarik['Ttarik']);
-                        ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td><strong>Saldo Akhir</strong></td>
-                    <td class="text-right">
-                        <strong>
-                            <?php
-                                // Mengambil saldo akhir yang paling akurat dari tabel siswa
-                                $sql_saldo_akhir = $koneksi->query("SELECT saldo FROM tb_siswa WHERE nis='$nis'");
-                                $data_saldo_akhir = $sql_saldo_akhir->fetch_assoc();
-                                echo rupiah($data_saldo_akhir['saldo']);
-                            ?>
-                        </strong>
-                    </td>
-                </tr>
-            </table>
-        </div>
+<body onload="window.print()">
+<div class="container">
+    <div class="header">
+        <h3>BUKU TABUNGAN SISWA</h3>
+        <h3><?= htmlspecialchars($namaSekolah) ?></h3>
+        <p><?= htmlspecialchars($alamatSekolah) ?></p>
     </div>
 
-    <script>
-        // Otomatis menjalankan dialog print saat halaman dimuat
-        window.print();
-    </script>
+    <table class="student-info">
+        <tr><td width="20%"><b>NIS</b></td><td width="1%">:</td><td><?= htmlspecialchars($data_siswa['nis']) ?></td></tr>
+        <tr><td><b>Nama Siswa</b></td><td>:</td><td><?= htmlspecialchars($data_siswa['nama_siswa']) ?></td></tr>
+        <tr><td><b>Kelas</b></td><td>:</td><td><?= htmlspecialchars($data_siswa['kelas']) ?></td></tr>
+    </table>
+
+    <table class="transaction-table">
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Tanggal</th>
+                <th class="text-left">Keterangan</th>
+                <th class="text-right">Setoran</th>
+                <th class="text-right">Penarikan</th>
+                <th class="text-right">Saldo</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            $no = 1;
+            $total_setor = 0;
+            $total_tarik = 0;
+            while ($row = $transactions->fetch_assoc()):
+                // 5. HITUNG TOTAL TRANSAKSI MELALUI PHP (LEBIH EFISIEN)
+                $total_setor += $row['setor'];
+                $total_tarik += $row['tarik'];
+                $keterangan = $row['jenis'] === 'ST' ? 'Setoran Tunai' : 'Penarikan Tunai';
+            ?>
+            <tr>
+                <td><?= $no++ ?></td>
+                <td><?= date('d-m-Y', strtotime($row['tgl'])) ?></td>
+                <td class="text-left"><?= $keterangan ?></td>
+                <td class="text-right"><?= rupiah($row['setor']) ?></td>
+                <td class="text-right"><?= rupiah($row['tarik']) ?></td>
+                <td class="text-right"><b><?= rupiah($row['saldo_akhir']) ?></b></td>
+            </tr>
+            <?php endwhile; ?>
+        </tbody>
+    </table>
+
+    <div class="summary-box">
+        <table>
+            <tr>
+                <td><b>Total Setoran</b></td>
+                <td class="text-right"><?= rupiah($total_setor) ?></td>
+            </tr>
+            <tr>
+                <td><b>Total Penarikan</b></td>
+                <td class="text-right"><?= rupiah($total_tarik) ?></td>
+            </tr>
+            <tr>
+                <td><b>Saldo Akhir</b></td>
+                <td class="text-right"><b><?= rupiah($data_siswa['saldo']) ?></b></td>
+            </tr>
+        </table>
+    </div>
+</div>
 </body>
 </html>

@@ -1,7 +1,8 @@
 <?php
     //Mulai Sesi
     session_start();
-    if (isset($_SESSION["ses_username"])==""){
+    // PERBAIKAN: Menggunakan empty() untuk pengecekan sesi yang lebih tepat
+    if (empty($_SESSION["ses_username"])){
         header("location: login.php");
     
     }else{
@@ -44,8 +45,7 @@
     <script src="plugins/select2/select2.full.min.js"></script>
     <script src="plugins/datatables/jquery.dataTables.min.js"></script>
     <script src="plugins/datatables/dataTables.bootstrap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@9"></script>
-    <script src="dist/js/app.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <script src="dist/js/app.min.js"></script>
 </head>
 
 <body class="hold-transition skin-red sidebar-mini">
@@ -72,7 +72,7 @@
                             <a class="dropdown-toggle" data-toggle="dropdown">
                                 <span>
                                     <b>
-                                        <?php echo $nama_sekolah; ?>
+                                        <?php echo htmlspecialchars($nama_sekolah); ?>
                                     </b>
                                 </span>
                             </a>
@@ -90,10 +90,10 @@
                     </div>
                     <div class="pull-left info">
                         <p>
-                            <?php echo $data_nama; ?>
+                            <?php echo htmlspecialchars($data_nama); ?>
                         </p>
                         <span class="label label-success">
-                            <?php echo $data_level; ?>
+                            <?php echo htmlspecialchars($data_level); ?>
                         </span>
                     </div>
                 </div>
@@ -134,7 +134,7 @@
                         <ul class="treeview-menu">
                             <li><a href="?page=data_setor"><i class="fa fa-arrow-circle-o-down"></i>Setoran</a></li>
                             <li><a href="?page=data_tarik"><i class="fa fa-arrow-circle-o-up"></i>Penarikan</a></li>
-                            <li><a href="?page=view_kas"><i class="fa fa-pie-chart"></i>Info Kas</a></li>
+                            <li><a href="?page=data_kas"><i class="fa fa-pie-chart"></i>Info Kas</a></li>
                         </ul>
                     </li>
 
@@ -152,8 +152,7 @@
                             </span>
                         </a>
                         <ul class="treeview-menu">
-                            <li><a href="?page=laporan"><i class="fa fa-file-text-o"></i>Laporan Rekap</a></li>
-                            <li><a href="?page=laporan1"><i class="fa fa-file-text"></i>Laporan Detail</a></li>
+                            <li><a href="?page=laporan"><i class="fa fa-file-text-o"></i>Laporan Periodik</a></li>
                             <li><a href="?page=laporan_harian"><i class="fa fa-calendar-check-o"></i>Laporan Harian</a></li>
                         </ul>
                     </li>
@@ -203,7 +202,7 @@
                         <ul class="treeview-menu">
                             <li><a href="?page=data_setor"><i class="fa fa-arrow-circle-o-down"></i>Setoran</a></li>
                             <li><a href="?page=data_tarik"><i class="fa fa-arrow-circle-o-up"></i>Penarikan</a></li>
-                            <li><a href="?page=view_kas"><i class="fa fa-pie-chart"></i>Info Kas</a></li>
+                            <li><a href="?page=data_kas"><i class="fa fa-pie-chart"></i>Info Kas</a></li>
                         </ul>
                     </li>
 
@@ -212,11 +211,18 @@
                             <i class="fa fa-book"></i> <span>Buku Tabungan</span>
                         </a>
                     </li>
-
-                    <li>
-                        <a href="?page=laporan_harian">
-                            <i class="fa fa-file-o"></i> <span>Laporan Harian</span>
+                    
+                    <li class="treeview">
+                        <a href="#">
+                            <i class="fa fa-files-o"></i> <span>Laporan</span>
+                            <span class="pull-right-container">
+                                <i class="fa fa-angle-left pull-right"></i>
+                            </span>
                         </a>
+                        <ul class="treeview-menu">
+                            <li><a href="?page=laporan"><i class="fa fa-file-text-o"></i>Laporan Periodik</a></li>
+                            <li><a href="?page=laporan_harian"><i class="fa fa-calendar-check-o"></i>Laporan Harian</a></li>
+                        </ul>
                     </li>
 
                     <?php
@@ -232,7 +238,7 @@
 
                 </ul>
             </section>
-            </aside>
+        </aside>
 
         <div class="content-wrapper">
             <section class="content">
@@ -276,14 +282,26 @@
                             case 'del_tarik': include "petugas/tarik/del_tarik.php"; break;
                             case 'data_tabungan': include "petugas/tabungan/data_tabungan.php"; break;
                             case 'view_tabungan': include "petugas/tabungan/view_tabungan.php"; break;
+                            case 'data_kas': include "petugas/kas/data_kas.php"; break;
                             
-                            // Perbaikan rute untuk Info Kas
-                            case 'view_kas': include "petugas/kas/view_kas.php"; break;
-                            case 'data_kas': include "petugas/kas/data_kas.php"; break; // <-- RUTE BARU DITAMBAHKAN
-                            case 'cetak_laporan': include "petugas/laporan/cetak_laporan.php"; break;   
-                            case 'laporan': include "petugas/laporan/view_laporan.php"; break;
-                            case 'laporan1': include "petugas/laporan/view_laporan1.php"; break;
-                            case 'laporan_harian': include "petugas/laporan/view_laporan_harian.php"; break;
+                            /* ===================================================================
+                            PERBAIKAN: Routing Laporan dibuat dinamis dan standar
+                            =================================================================== */
+                            case 'laporan':
+                                if ($data_level == "Administrator") {
+                                    include "report/view_laporan.php";
+                                } else {
+                                    include "petugas/laporan/view_laporan.php";
+                                }
+                                break;
+                            
+                            case 'laporan_harian':
+                                if ($data_level == "Administrator") {
+                                    include "report/view_laporan_harian.php";
+                                } else {
+                                    include "petugas/laporan/view_laporan_harian.php";
+                                }
+                                break;
                     
                             // Default
                             default:
