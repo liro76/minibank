@@ -1,172 +1,131 @@
 <?php
-    include "../inc/koneksi.php";
-    include "../inc/rupiah.php";
+require_once "../inc/koneksi.php";
+require_once "../inc/rupiah.php";
 
-    // Get today's date automatically
-    $dt1 = date('Y-m-d');
-    $dt2 = date('Y-m-d');
-?>
+date_default_timezone_set('Asia/Jakarta');          // (1)
 
-<?php
-  $sql = $koneksi->query("SELECT SUM(setor) as tot_masuk from tb_tabungan where jenis='ST' and tgl BETWEEN '$dt1' AND '$dt2'");
-  $masuk = 0;
-  while ($data= $sql->fetch_assoc()) {
-    $masuk=$data['tot_masuk'] ?? 0;
-  }
+$tanggal_hari_ini = date('Y-m-d');
 
-  $sql = $koneksi->query("SELECT SUM(tarik) as tot_keluar from tb_tabungan where jenis='TR' and tgl BETWEEN '$dt1' AND '$dt2'");
-  $keluar = 0;
-  while ($data= $sql->fetch_assoc()) {
-    $keluar=$data['tot_keluar'] ?? 0;
-  }
+/* ---- data profil sekolah ---- */
+$profil = $koneksi->query("SELECT nama_sekolah FROM tb_profil LIMIT 1")
+                  ->fetch_assoc();
+$namaSekolah = $profil ? htmlspecialchars($profil['nama_sekolah'])
+                       : 'Nama Sekolah';
+
+/* ---- prepared statement transaksi ---- */
+$stmt = $koneksi->prepare(
+    "SELECT t.nis, s.nama_siswa, t.jenis, t.setor, t.tarik,
+            t.saldo_awal, t.saldo_akhir
+     FROM tb_tabungan t
+     JOIN tb_siswa s ON t.nis = s.nis
+     WHERE t.tgl = ?
+     ORDER BY t.id_tabungan"
+);
+$stmt->bind_param('s', $tanggal_hari_ini);
+$stmt->execute();
+$result = $stmt->get_result();
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <title>Bank Mini - Laporan Tabungan Harian</title>
+    <title>Laporan Transaksi Harian</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        .report-title {
-            margin-bottom: 5px;
-        }
-        .report-date {
-            margin-bottom: 15px;
-        }
-        .report-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        .report-table th {
-            background-color: #f2f2f2;
-            padding: 8px 12px;
-            text-align: center;
-            border: 1px solid #ddd;
-        }
-        .report-table td {
-            padding: 6px 10px;
-            border: 1px solid #ddd;
-        }
-        .number-col {
-            text-align: right;
-            padding-right: 15px !important;
-        }
-        .center-col {
-            text-align: center;
-        }
-        .summary-row {
-            font-weight: bold;
-            background-color: #f9f9f9;
-        }
-        .divider {
-            border-top: 1px solid #000;
-            margin: 10px 0;
-        }
-        .no-print {
-            display: none;
-        }
-        @media print {
-            .no-print {
-                display: none;
-            }
-            body {
-                margin: 0;
-                padding: 10px;
-            }
-        }
+        body { font-family: Arial, sans-serif; font-size: 12px; }
+        .container { width: 95%; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .header h3, .header p { margin: 2px 0; }
+        .transaction-table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        .transaction-table th, .transaction-table td { border: 1px solid #000; padding: 6px; text-align: center; }
+        .transaction-table th { background-color: #f2f2f2; }
+        .text-right { text-align: right !important; }
+        .text-left { text-align: left !important; }
+        .footer-summary { margin-top: 20px; width: 40%; float: right; }
+        .footer-summary table { width: 100%; border-collapse: collapse; }
+        .footer-summary td { padding: 5px; border: 1px solid #000; }
     </style>
 </head>
-
 <body>
-    <div style="text-align: center;">
-        <h2 class="report-title">Laporan Tabungan Siswa Harian</h2>
-        <h3 class="report-title">Sekolah</h3>
-        <p class="report-date">Tanggal: <?php echo date("d-M-Y", strtotime($dt1)); ?></p>
-        <div class="divider"></div>
+    <div class="container">
+        <div class="header">
+            <h3>LAPORAN TRANSAKSI HARIAN</h3>
+            <?php
+                // Mengambil data profil sekolah
+                $sql_profil = $koneksi->query("SELECT * from tb_profil LIMIT 1");
+                $data_profil = $sql_profil->fetch_assoc();
+            ?>
+            <h3><?php echo htmlspecialchars($data_profil['nama_sekolah']); ?></h3>
+            <p>Tanggal: <?php echo date("d M Y", strtotime($tanggal_hari_ini)); ?></p>
+        </div>
 
-        <table class="report-table">
+        <table class="transaction-table">
             <thead>
                 <tr>
-                    <th width="5%">No.</th>
-                    <th width="12%">Tanggal</th>
-                    <th width="15%">Petugas</th>
-                    <th width="20%">Nama Siswa</th>
-                    <th width="10%">Kelas</th>
-                    <th width="12%">Saldo Awal</th>
-                    <th width="12%">Setor</th>
-                    <th width="12%">Tarik</th>
-                    <th width="12%">Saldo Akhir</th>
+                    <th>No</th>
+                    <th>NIS</th>
+                    <th class="text-left">Nama Siswa</th>
+                    <th class="text-left">Keterangan</th>
+                    <th class="text-right">Saldo Awal</th>
+                    <th class="text-right">Setoran</th>
+                    <th class="text-right">Penarikan</th>
+                    <th class="text-right">Saldo Akhir</th>
                 </tr>
             </thead>
             <tbody>
                 <?php
-                $sql_tampil = "SELECT * FROM tb_tabungan 
-                             INNER JOIN tb_siswa ON tb_tabungan.nis=tb_siswa.nis 
-                             INNER JOIN tb_kelas ON tb_siswa.id_kelas=tb_kelas.id_kelas 
-                             WHERE tgl BETWEEN '$dt1' AND '$dt2' 
-                             ORDER BY tgl ASC";
-                $query_tampil = mysqli_query($koneksi, $sql_tampil);
-                $no = 1;
-                
-                if(mysqli_num_rows($query_tampil) > 0) {
-                    while ($data = mysqli_fetch_array($query_tampil, MYSQLI_BOTH)) {
-                        $saldo_akhir = ($data['saldo_sebelum'] ?? 0) + $data['setor'] - $data['tarik'];
+                    $no = 1;
+                    $total_setor_harian = 0;
+                    $total_tarik_harian = 0;
+
+                    // Query yang diperbaiki untuk mengambil data yang diperlukan
+                    $sql = $koneksi->query("SELECT t.nis, s.nama_siswa, t.jenis, t.setor, t.tarik, t.saldo_awal, t.saldo_akhir 
+                                           FROM tb_tabungan t JOIN tb_siswa s ON t.nis = s.nis 
+                                           WHERE t.tgl = '$tanggal_hari_ini' 
+                                           ORDER BY t.id_tabungan ASC");
+
+                    if(mysqli_num_rows($sql) > 0) {
+                        while ($data = $sql->fetch_assoc()) {
+                            $total_setor_harian += $data['setor'];
+                            $total_tarik_harian += $data['tarik'];
                 ?>
                 <tr>
-                    <td class="center-col"><?php echo $no; ?></td>
-                    <td><?php echo date("d/M/Y", strtotime($data['tgl'])); ?></td>
-                    <td><?php echo $data['petugas']; ?></td>
-                    <td><?php echo $data['nama_siswa']; ?></td>
-                    <td class="center-col"><?php echo $data['kelas']; ?></td>
-                    <td class="number-col"><?php echo rupiah($data['saldo_sebelum'] ?? 0); ?></td>
-                    <td class="number-col"><?php echo rupiah($data['setor']); ?></td>
-                    <td class="number-col"><?php echo rupiah($data['tarik']); ?></td>
-                    <td class="number-col"><?php echo rupiah($saldo_akhir); ?></td>
+                    <td><?php echo $no++; ?></td>
+                    <td><?php echo $data['nis']; ?></td>
+                    <td class="text-left"><?php echo htmlspecialchars($data['nama_siswa']); ?></td>
+                    <td class="text-left"><?php echo ($data['jenis'] == 'ST') ? 'Setoran Tunai' : 'Penarikan Tunai'; ?></td>
+                    <td class="text-right"><?php echo rupiah($data['saldo_awal']); ?></td>
+                    <td class="text-right"><?php echo rupiah($data['setor']); ?></td>
+                    <td class="text-right"><?php echo rupiah($data['tarik']); ?></td>
+                    <td class="text-right"><b><?php echo rupiah($data['saldo_akhir']); ?></b></td>
                 </tr>
                 <?php
-                        $no++;
+                        }
+                    } else {
+                        echo "<tr><td colspan='8'>Tidak ada transaksi pada hari ini.</td></tr>";
                     }
-                } else {
-                ?>
-                <tr>
-                    <td colspan="9" style="text-align: center;">Tidak ada transaksi hari ini</td>
-                </tr>
-                <?php
-                }
                 ?>
             </tbody>
-            <tfoot>
-                <tr class="summary-row">
-                    <td colspan="5">Total Setoran</td>
-                    <td colspan="4" class="number-col"><?php echo rupiah($masuk); ?></td>
-                </tr>
-                <tr class="summary-row">
-                    <td colspan="5">Total Penarikan</td>
-                    <td colspan="4" class="number-col"><?php echo rupiah($keluar); ?></td>
-                </tr>
-                <tr class="summary-row">
-                    <td colspan="5">Total Kas Hari Ini</td>
-                    <td colspan="4" class="number-col"><?php echo rupiah($masuk - $keluar); ?></td>
-                </tr>
-            </tfoot>
         </table>
-    </div>
 
-    <div class="no-print" style="margin-top: 20px; text-align: center;">
-        <button onclick="window.print()" style="padding: 8px 15px; background-color: #4CAF50; color: white; border: none; cursor: pointer;">
-            Cetak Laporan
-        </button>
+        <div class="footer-summary">
+            <table>
+                <tr>
+                    <td><strong>Total Setoran Hari Ini</strong></td>
+                    <td class="text-right"><?php echo rupiah($total_setor_harian); ?></td>
+                </tr>
+                <tr>
+                    <td><strong>Total Penarikan Hari Ini</strong></td>
+                    <td class="text-right"><?php echo rupiah($total_tarik_harian); ?></td>
+                </tr>
+                <tr>
+                    <td><strong>Selisih Kas Hari Ini</strong></td>
+                    <td class="text-right"><strong><?php echo rupiah($total_setor_harian - $total_tarik_harian); ?></strong></td>
+                </tr>
+            </table>
+        </div>
     </div>
-
     <script>
-        // Auto-print when page loads
-        window.addEventListener('load', function() {
-            window.print();
-        });
+        // Otomatis menjalankan dialog print saat halaman dimuat
+        window.print();
     </script>
 </body>
 </html>

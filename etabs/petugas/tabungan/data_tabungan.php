@@ -1,50 +1,7 @@
-<?php
-// Pastikan baris error_reporting ini ada di sini saat debugging!
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// PERBAIKI JALUR INCLUDE DI SINI
-include '../../inc/koneksi.php'; // Sesuaikan jalur jika berbeda
-include '../../inc/rupiah.php'; // Sesuaikan jalur jika berbeda
-
-$nis = ''; // Inisialisasi NIS
-if (isset($_POST["nis"])) {
-    $nis = (int)mysqli_real_escape_string($koneksi, $_POST["nis"]); // Ambil NIS dan konversi ke INT
-} else {
-    // Jika tidak ada NIS dari POST, mungkin pengguna langsung mengakses halaman ini
-    // Bisa redirect kembali ke halaman pencarian atau tampilkan pesan.
-    echo "<script>
-    Swal.fire({title: 'Peringatan',text: 'Siswa belum dipilih atau akses tidak valid.',icon: 'warning',confirmButtonText: 'OK'
-    }).then((result) => {if (result.value)
-        {window.location = '?page=view_tabungan';} // Kembali ke halaman pencarian siswa
-    })</script>";
-    exit; // Hentikan eksekusi script
-}
-?>
-
-<?php
-// Inisialisasi total setoran dan tarikan
-$setor = 0;
-$tarik = 0;
-
-// Query untuk total setoran
-$sql_setor_sum = $koneksi->query("SELECT SUM(setor) as Tsetor FROM tb_tabungan WHERE jenis='ST' AND nis='$nis'");
-if ($sql_setor_sum && $data_setor_sum = $sql_setor_sum->fetch_assoc()) {
-    $setor = (int)$data_setor_sum['Tsetor']; // Konversi ke INT, akan jadi 0 jika NULL
-}
-
-// Query untuk total tarikan
-$sql_tarik_sum = $koneksi->query("SELECT SUM(tarik) as Ttarik FROM tb_tabungan WHERE jenis='TR' AND nis='$nis'");
-if ($sql_tarik_sum && $data_tarik_sum = $sql_tarik_sum->fetch_assoc()) {
-    $tarik = (int)$data_tarik_sum['Ttarik']; // Konversi ke INT, akan jadi 0 jika NULL
-}
-?>
-
-
 <section class="content-header">
     <h1>
-        Tabungan
-        <small>Siswa</small>
+        Buku Tabungan
+        <small>Pencarian Siswa</small>
     </h1>
     <ol class="breadcrumb">
         <li>
@@ -55,110 +12,97 @@ if ($sql_tarik_sum && $data_tarik_sum = $sql_tarik_sum->fetch_assoc()) {
         </li>
     </ol>
 </section>
+
 <section class="content">
+    <div class="row">
+        <div class="col-md-12">
+            <form method="post" id="form-saldo-siswa">
+                <div class="box box-primary">
+                    <div class="box-header with-border">
+                        <h3 class="box-title">Cari Siswa</h3>
+                        <div class="box-tools pull-right">
+                            <button type="button" class="btn btn-box-tool" data-widget="collapse">
+                                <i class="fa fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="box-body">
+                        <div class="form-group">
+                            <label for="nis">Pilih Siswa</label>
+                            <select name="nis" id="nis" class="form-control select2" style="width: 100%;" required aria-label="Pilih siswa aktif">
+                                <option value="">-- Pilih Siswa --</option>
+                                <?php
+                                $query = "SELECT nis, nama_siswa FROM tb_siswa WHERE status='Aktif' ORDER BY nama_siswa ASC";
+                                $hasil = mysqli_query($koneksi, $query);
+                                while ($row = mysqli_fetch_array($hasil)) {
+                                ?>
+                                    <option value="<?php echo htmlspecialchars($row['nis']); ?>">
+                                        <?php echo htmlspecialchars($row['nis']); ?> - <?php echo htmlspecialchars($row['nama_siswa']); ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                            <small id="loading" style="display:none;">Mengambil data saldo...</small>
+                        </div>
 
-    <div class="alert alert-success alert-dismissible">
-        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-        <h4>
-            <i class="icon fa fa-info"></i> Info Tabungan</h4>
-
-        <h4>
-            Tot. Setoran :
-            <?php echo rupiah($setor); ?>
-        </h4>
-        <h4>
-            Tot. Tarikan :
-            <?php echo rupiah($tarik); ?>
-        </h4>
-        <hr>
-        <h3>Saldo Tabungan :
-            <?php
-            $sql_saldo = $koneksi->query("SELECT saldo FROM tb_siswa WHERE nis='$nis'");
-            if ($sql_saldo && $data_saldo = $sql_saldo->fetch_assoc()) {
-                echo rupiah((int)$data_saldo['saldo']); // Konversi ke INT
-            } else {
-                echo rupiah(0); // Tampilkan 0 jika siswa tidak ditemukan atau saldo tidak ada
-            }
-            ?>
-        </h3>
-    </div>
-
-
-    <div class="box box-primary">
-        <div class="box-header">
-            <a href="?page=view_tabungan" class="btn btn-primary">
-                <i class="glyphicon glyphicon-arrow-left"></i> Kembali</a>
-            <a href="./report/cetak-tabungan.php?nis=<?php echo $nis ?>" target=" _blank"
-             class="btn btn-default">
-                <i class="glyphicon glyphicon-print"></i> Cetak</a>
-            <div class="box-tools pull-right">
-                <button type="button" class="btn btn-box-tool" data-widget="collapse">
-                    <i class="fa fa-minus"></i>
-                </button>
-                <button type="button" class="btn btn-box-tool" data-widget="remove">
-                    <i class="fa fa-remove"></i>
-                </button>
-            </div>
-        </div>
-        <div class="box-body">
-            <div class="table-responsive">
-                <table id="example1" class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>NIS</th>
-                            <th>Nama</th>
-                            <th>Tanggal</th>
-                            <th>Setoran</th>
-                            <th>Tarikan</th>
-                            <th>Petugas</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-
-                        <?php
-                    $no = 1;
-                    $sql_transaksi = $koneksi->query("SELECT s.nis, s.nama_siswa, t.id_tabungan, t.setor, t.tarik, t.tgl, t.jenis, t.petugas
-                    FROM tb_siswa s JOIN tb_tabungan t ON s.nis=t.nis
-                    WHERE s.nis ='$nis' ORDER BY t.tgl ASC");
-
-                    if ($sql_transaksi) {
-                        while ($data_transaksi = $sql_transaksi->fetch_assoc()) {
-                    ?>
-
-                        <tr>
-                            <td>
-                                <?php echo $no++; ?>
-                            </td>
-                            <td>
-                                <?php echo $data_transaksi['nis']; ?>
-                            </td>
-                            <td>
-                                <?php echo $data_transaksi['nama_siswa']; ?>
-                            </td>
-                            <td>
-                                <?php $tgl = $data_transaksi['tgl']; echo date("d/M/Y", strtotime($tgl))?>
-                            </td>
-                            <td align="right">
-                                <?php echo rupiah($data_transaksi['setor']); ?>
-                            </td>
-                            <td align="right">
-                                <?php echo rupiah($data_transaksi['tarik']); ?>
-                            </td>
-                            <td>
-                                <?php echo $data_transaksi['petugas']; ?>
-                            </td>
-                        </tr>
-                        <?php
-                        }
-                    } else {
-                        echo "<tr><td colspan='7'>Error mengambil data transaksi: " . mysqli_error($koneksi) . "</td></tr>";
-                    }
-                    ?>
-                    </tbody>
-
-                </table>
-            </div>
+                        <div class="form-group">
+                            <label for="saldo">Saldo Tabungan Saat Ini</label>
+                            <input type="text" id="saldo" class="form-control" placeholder="Pilih siswa untuk melihat saldo..." readonly>
+                        </div>
+                    </div>
+                    <div class="box-footer">
+                        <a id="lihat-riwayat-btn" href="#" class="btn btn-primary disabled" aria-disabled="true">
+                            <i class="fa fa-eye"></i> Lihat Riwayat
+                        </a>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </section>
+
+<script>
+    $(document).ready(function () {
+        $('.select2').select2();
+
+        function formatRupiah(angka) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR'
+            }).format(angka);
+        }
+
+        $('#nis').on('change', function () {
+            const nis = $(this).val();
+            const lihatBtn = $('#lihat-riwayat-btn');
+            const saldoInput = $('#saldo');
+            const loadingText = $('#loading');
+
+            if (nis) {
+                lihatBtn.removeClass('disabled').attr('href', 'index.php?page=view_tabungan&nis=' + nis);
+                loadingText.show();
+
+                $.ajax({
+                    url: "plugins/proses-ajax.php",
+                    method: "POST",
+                    data: { nis_siswa: nis, action: 'get_saldo_siswa' },
+                    dataType: 'json',
+                    success: function (response) {
+                        loadingText.hide();
+                        if (response.status === 'success') {
+                            saldoInput.val(formatRupiah(response.saldo));
+                        } else {
+                            saldoInput.val('Gagal memuat saldo.');
+                        }
+                    },
+                    error: function () {
+                        loadingText.hide();
+                        saldoInput.val('Error koneksi AJAX.');
+                    }
+                });
+            } else {
+                saldoInput.val('Pilih siswa untuk melihat saldo...');
+                lihatBtn.addClass('disabled').attr('href', '#');
+            }
+        });
+    });
+</script>

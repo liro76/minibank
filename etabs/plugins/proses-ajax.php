@@ -1,35 +1,54 @@
 <?php
-// Pastikan path ke koneksi.php benar relatif dari lokasi file ini
-include '../inc/koneksi.php';
-// Fungsi rupiah.php tidak perlu di-include di sini karena formatting akan dilakukan di JavaScript
+/**
+ *  AJAX Endpoint: Ambil saldo tabungan siswa
+ *  Path   : etabs/plugins/proses-ajax.php
+ *  Method : POST
+ *  Params : nis_siswa  (integer)  — NIS siswa
+ *           action     (string)   — 'hapus_saldo_siswa' | 'get_saldo_siswa'
+ *  Return : JSON
+ */
 
-// Memastikan bahwa ini adalah permintaan AJAX yang kita harapkan
-if (isset($_POST['action']) && $_POST['action'] == 'get_saldo_siswa') {
-    // Memastikan parameter nis_siswa dikirim
-    if (isset($_POST['nis_siswa'])) {
-        $nis_siswa = mysqli_real_escape_string($koneksi, $_POST['nis_siswa']); // Ambil NIS
+header('Content-Type: application/json');
 
-        // Query untuk mengambil saldo dari tabel tb_siswa
-        // Diasumsikan kolom 'saldo' di tb_siswa menyimpan saldo terkini
-        $sql_get_saldo = "SELECT saldo FROM tb_siswa WHERE nis = '$nis_siswa'";
-        $query_get_saldo = mysqli_query($koneksi, $sql_get_saldo);
-
-        if ($query_get_saldo && mysqli_num_rows($query_get_saldo) > 0) {
-            $data_saldo = mysqli_fetch_assoc($query_get_saldo);
-            // Mengembalikan saldo sebagai angka mentah (integer) dalam format JSON
-            echo json_encode(['status' => 'success', 'saldo' => (int)$data_saldo['saldo']]);
-        } else {
-            // Jika siswa tidak ditemukan atau saldo tidak ada
-            echo json_encode(['status' => 'error', 'message' => 'Siswa tidak ditemukan atau saldo tidak ada.']);
-        }
-    } else {
-        // Jika parameter nis_siswa tidak dikirim
-        echo json_encode(['status' => 'error', 'message' => 'Parameter NIS siswa tidak ditemukan.']);
-    }
-    exit; // Penting untuk menghentikan eksekusi script setelah mengirim respons JSON
-} else {
-    // Jika 'action' tidak diset atau tidak sesuai
-    echo json_encode(['status' => 'error', 'message' => 'Aksi tidak valid.']);
+// hanya terima POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);           // Method Not Allowed
+    echo json_encode(['status' => 'error', 'message' => 'Hanya menerima POST']);
     exit;
 }
-?>
+
+// validasi parameter
+$action = $_POST['action'] ?? '';
+$nisStr = $_POST['nis_siswa'] ?? '';
+
+if ($action !== 'get_saldo_siswa') {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Aksi tidak valid']);
+    exit;
+}
+
+if (!ctype_digit($nisStr)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'NIS harus numerik']);
+    exit;
+}
+
+$nis = (int) $nisStr;
+
+require_once __DIR__ . '/../inc/koneksi.php';   // koneksi DB
+
+// --- query dengan prepared statement ---
+$stmt = $koneksi->prepare("SELECT saldo FROM tb_siswa WHERE nis = ? LIMIT 1");
+$stmt->bind_param('i', $nis);
+$stmt->execute();
+$stmt->bind_result($saldo);
+
+if ($stmt->fetch()) {
+    echo json_encode(['status' => 'success', 'saldo' => (int) $saldo]);
+} else {
+    http_response_code(404);                     // Not Found
+    echo json_encode(['status' => 'error', 'message' => 'Siswa tidak ditemukan', 'saldo' => 0]);
+}
+
+$stmt->close();
+$koneksi->close();

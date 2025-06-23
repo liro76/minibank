@@ -1,124 +1,154 @@
 <?php
-    include "../inc/koneksi.php";
-    //FUNGSI RUPIAH
-    include "../inc/rupiah.php";
+/* ------------------------------------------------------------------
+ |   laporan_tabungan_rekap.php
+ | ------------------------------------------------------------------
+ |   Menampilkan laporan tabungan yang sudah DIREKAP per siswa
+ |   antara tanggal tgl_1 – tgl_2. 1 baris = 1 siswa.
+ | ------------------------------------------------------------------
+ */
 
-    $dt1 = $_POST["tgl_1"];
-    $dt2 = $_POST["tgl_2"];
-?>
+require_once '../inc/koneksi.php';
+require_once '../inc/rupiah.php';
 
-<?php
-  $sql = $koneksi->query("SELECT SUM(setor) as tot_masuk  from tb_tabungan where jenis='ST' and tgl BETWEEN '$dt1' AND '$dt2'");
-  while ($data= $sql->fetch_assoc()) {
-    $masuk=$data['tot_masuk'];
-  }
+date_default_timezone_set('Asia/Jakarta');
 
-  $sql = $koneksi->query("SELECT SUM(tarik) as tot_keluar  from tb_tabungan where jenis='TR' and tgl BETWEEN '$dt1' AND '$dt2'");
-  while ($data= $sql->fetch_assoc()) {
-    $keluar=$data['tot_keluar'];
-  }
+/* ===== 1. Ambil & validasi input tanggal ===== */
+$dt1 = filter_input(INPUT_POST, 'tgl_1', FILTER_SANITIZE_STRING);
+$dt2 = filter_input(INPUT_POST, 'tgl_2', FILTER_SANITIZE_STRING);
+
+$dt1 = date('Y-m-d', strtotime($dt1 ?: 'today'));
+$dt2 = date('Y-m-d', strtotime($dt2 ?: 'today'));
+if ($dt1 > $dt2) { [$dt1, $dt2] = [$dt2, $dt1]; }
+
+/* ===== 2. Query rekap langsung di MySQL =====
+   Kita pilih:
+   • saldo_awal  = saldo_awal transaksi paling awal
+   • saldo_akhir = saldo_akhir transaksi paling akhir
+   Menggunakan sub-query MIN/MAX id_tabungan agar akurat.            */
+$sql = "
+SELECT
+    r.nis,
+    s.nama_siswa,
+    r.saldo_awal,
+    r.total_setor,
+    r.total_tarik,
+    r.saldo_akhir
+FROM (
+    SELECT
+        nis,
+        /* ----- saldo_awal transaksi pertama ----- */
+        ( SELECT saldo_awal
+          FROM tb_tabungan t2
+          WHERE t2.nis   = t1.nis
+            AND t2.tgl  BETWEEN ? AND ?
+          ORDER BY t2.tgl ASC, t2.id_tabungan ASC
+          LIMIT 1 ) AS saldo_awal,
+
+        /* ----- saldo_akhir transaksi terakhir ---- */
+        ( SELECT saldo_akhir
+          FROM tb_tabungan t3
+          WHERE t3.nis   = t1.nis
+            AND t3.tgl  BETWEEN ? AND ?
+          ORDER BY t3.tgl DESC, t3.id_tabungan DESC
+          LIMIT 1 ) AS saldo_akhir,
+
+        SUM(setor)             AS total_setor,
+        SUM(tarik)             AS total_tarik
+    FROM tb_tabungan t1
+    WHERE t1.tgl BETWEEN ? AND ?
+    GROUP BY nis
+) r
+JOIN tb_siswa s ON s.nis = r.nis
+ORDER BY s.nama_siswa;
+";
+
+$stmt = $koneksi->prepare($sql);
+/* bind_param urut sesuai ? di query:  dt1, dt2, dt1, dt2, dt1, dt2 */
+$stmt->bind_param('ssssss', $dt1, $dt2, $dt1, $dt2, $dt1, $dt2);
+$stmt->execute();
+$rekap = $stmt->get_result();
+
+/* ===== 3. Hitung total keseluruhan periode ===== */
+$total_setor  = 0;
+$total_tarik  = 0;
 ?>
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="id">
 <head>
-    <title>Bank Mini - Laporan Tabungan</title>
+  <meta charset="utf-8">
+  <title>Laporan Tabungan Per Siswa</title>
+  <style>
+      body   {font-family:Arial,Helvetica,sans-serif;font-size:12px}
+      table  {border-collapse:collapse;width:100%}
+      th,td  {border:1px solid #000;padding:6px}
+      th     {background:#f2f2f2}
+      .text-r{ text-align:right }
+      .tot   {font-weight:bold;background:#fafafa}
+  </style>
 </head>
+<body onload="window.print()">
+<center>
+  <h2>LAPORAN TABUNGAN PER SISWA</h2>
+  <h3>Periode:
+      <?= date('d-M-Y', strtotime($dt1)); ?> s/d
+      <?= date('d-M-Y', strtotime($dt2)); ?>
+  </h3>
+</center>
 
-<body>
-    <center>
-        <h2>Laporan Tabungan Siswa</h2>
-        <h3>Sekolah</h3>
-        <p>Periode :
-            <?php $a=$dt1; echo date("d-M-Y", strtotime($a))?>
-            s/d
-            <?php $b=$dt2; echo date("d-M-Y", strtotime($b))?>
-            <p>_________________________________________________________________________________________</p>
+<table>
+<thead>
+  <tr>
+    <th>No</th>
+    <th>NIS</th>
+    <th>Nama Siswa</th>
+    <th class="text-r">Saldo Awal</th>
+    <th class="text-r">Total Setor</th>
+    <th class="text-r">Total Tarik</th>
+    <th class="text-r">Saldo Akhir</th>
+  </tr>
+</thead>
+<tbody>
+<?php
+$no = 1;
+if ($rekap->num_rows) {
+    while ($row = $rekap->fetch_assoc()) {
+        $total_setor += $row['total_setor'];
+        $total_tarik += $row['total_tarik']; ?>
+  <tr>
+    <td><?= $no++; ?></td>
+    <td><?= htmlspecialchars($row['nis']); ?></td>
+    <td><?= htmlspecialchars($row['nama_siswa']); ?></td>
+    <td class="text-r"><?= rupiah($row['saldo_awal']); ?></td>
+    <td class="text-r"><?= rupiah($row['total_setor']); ?></td>
+    <td class="text-r"><?= rupiah($row['total_tarik']); ?></td>
+    <td class="text-r"><?= rupiah($row['saldo_akhir']); ?></td>
+  </tr>
+<?php }
+} else { ?>
+  <tr><td colspan="7" style="text-align:center">Tidak ada transaksi pada periode ini.</td></tr>
+<?php } ?>
+</tbody>
+<tfoot>
+  <tr class="tot">
+    <td colspan="4">TOTAL SETORAN</td>
+    <td class="text-r"><?= rupiah($total_setor); ?></td>
+    <td colspan="2"></td>
+  </tr>
+  <tr class="tot">
+    <td colspan="5">TOTAL PENARIKAN</td>
+    <td class="text-r"><?= rupiah($total_tarik); ?></td>
+    <td></td>
+  </tr>
+  <tr class="tot">
+    <td colspan="4">SELISIH KAS (Setoran − Penarikan)</td>
+    <td colspan="3" class="text-r"><?= rupiah($total_setor - $total_tarik); ?></td>
+  </tr>
+</tfoot>
+</table>
 
-            <table border="1" cellspacing="0">
-                <thead>
-                    <tr>
-                        <th>No.</th>
-                        <th>Tanggal</th>
-                        <th>Petugas</th>
-                        <th>Nama Siswa</th>
-                        <th>Kelas</th>
-                        <th>Setor</th>
-                        <th>Tarik</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-
-        if(isset($_POST["btnCetak"])){
-           
-            $sql_tampil = "select * from tb_tabungan INNER JOIN tb_siswa ON tb_tabungan.nis=tb_siswa.nis INNER JOIN tb_kelas ON tb_siswa.id_kelas=tb_kelas.id_kelas where tgl BETWEEN '$dt1' AND '$dt2' order by tgl asc";
-            }
-            $query_tampil = mysqli_query($koneksi, $sql_tampil);
-            $no=1;
-            while ($data = mysqli_fetch_array($query_tampil,MYSQLI_BOTH)) {
-        ?>
-                    <tr>
-                        <td>
-                            <?php echo $no; ?>
-                        </td>
-                        <td>
-                            <?php  $tgl = $data['tgl']; echo date("d/M/Y", strtotime($tgl))?>
-                            &emsp;&emsp;&emsp;
-                        </td>
-                        <td>
-                            <?php echo $data['petugas']; ?>
-                            &emsp;&emsp;&emsp;
-                        </td>
-                        <td>
-                            <?php echo $data['nama_siswa']; ?>
-                            &emsp;&emsp;&emsp;
-                        </td>
-                        <td>
-                            <?php echo $data['kelas']; ?>
-                            &emsp;&emsp;&emsp;
-                        </td>
-                        <td align="right">
-                            &emsp;&emsp;&emsp;
-                            <?php echo rupiah($data['setor']); ?>
-                        </td>
-                        <td align="right">
-                            &emsp;&emsp;&emsp;
-                            <?php echo rupiah($data['tarik']); ?>
-                        </td>
-                    </tr>
-                    <?php
-            $no++;
-            }
-        ?>
-                </tbody>
-                <tr>
-                    <td colspan="5">Total Setoran</td>
-                    <td colspan="4">
-                        <?php echo rupiah($masuk); ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td colspan="6">Total Penarikan</td>
-                    <td colspan="3">
-                        <?php echo rupiah($keluar); ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td colspan="5">Total Kas :</td>
-                    <td colspan="4">
-                        <?php
-                        // Total Kas = jumlah setoran - jumlah tarik pada periode
-                        echo rupiah($masuk - $keluar);
-                        ?>
-                    </td>
-                </tr>
-            </table>
-    </center>
-
-    <script>
-        window.print();
-    </script>
 </body>
-
 </html>
+<?php
+$stmt->close();
+$koneksi->close();
+?>
