@@ -1,75 +1,17 @@
 <?php
-/* ───────────── Inisialisasi ───────────── */
+/* ─── initialisation ─── */
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once '../inc/koneksi.php';   // objek $koneksi (mysqli)
+require_once '../inc/koneksi.php';
 
-/* CSRF token */
+/* token CSRF sekali per sesi */
 if (!isset($_SESSION['csrf'])) {
-    $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    $_SESSION['csrf'] = bin2hex(random_bytes(16));
 }
 $csrf = $_SESSION['csrf'];
-
-/* ───────────── Proses penyimpanan ───────────── */
-if (isset($_POST['Simpan'])) {
-
-    /* 1. CSRF check */
-    if ($_POST['csrf'] !== $csrf) {
-        echo "<script>Swal.fire('Gagal','Token CSRF salah','error');</script>";
-        exit;
-    }
-
-    /* 2. Ambil & validasi input */
-    $nama   = trim($_POST['nama_pengguna'] ?? '');
-    $user   = trim($_POST['username']      ?? '');
-    $pass   = $_POST['password']           ?? '';
-    $level  = $_POST['level']              ?? '';
-
-    if ($nama==='' || $user==='' || $pass==='' || !in_array($level, ['Administrator','Petugas'])) {
-        echo "<script>Swal.fire('Gagal','Lengkapi semua isian','error');</script>";
-        exit;
-    }
-
-    /* 3. Cek duplikasi username */
-    $cek = $koneksi->prepare("SELECT 1 FROM tb_pengguna WHERE username=? LIMIT 1");
-    $cek->bind_param('s', $user);
-    $cek->execute();
-    if ($cek->get_result()->num_rows) {
-        echo "<script>
-        Swal.fire('Gagal','Username sudah dipakai','error')
-             .then(()=>location='index.php?page=MyApp/add_pengguna');
-        </script>";
-        exit;
-    }
-    $cek->close();
-
-    /* 4. Hash password */
-    $hash = password_hash($pass, PASSWORD_DEFAULT);
-
-    /* 5. Simpan data dengan prepared-statement */
-    $stmt = $koneksi->prepare("
-        INSERT INTO tb_pengguna (nama_pengguna, username, password, level)
-        VALUES (?,?,?,?)
-    ");
-    $stmt->bind_param('ssss', $nama, $user, $hash, $level);
-
-    if ($stmt->execute()) {
-        echo "<script>
-        Swal.fire('Berhasil','Data tersimpan','success')
-             .then(()=>location='index.php?page=MyApp/data_pengguna');
-        </script>";
-    } else {
-        echo "<script>
-        Swal.fire('Gagal','".htmlspecialchars($stmt->error)."','error')
-             .then(()=>location='index.php?page=MyApp/add_pengguna');
-        </script>";
-    }
-    $stmt->close();
-}
 ?>
-
-<!-- ───────────── Form HTML ───────────── -->
+<!-- ────────────────────────────────────────── -->
 <section class="content-header">
   <h1>Pengguna Sistem</h1>
   <ol class="breadcrumb">
@@ -78,49 +20,77 @@ if (isset($_POST['Simpan'])) {
 </section>
 
 <section class="content">
-  <div class="row"><div class="col-md-12">
-    <div class="box box-info">
-      <div class="box-header with-border">
-        <h3 class="box-title">Tambah Pengguna</h3>
-      </div>
-
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?= $csrf; ?>">
-        <div class="box-body">
-
-          <div class="form-group">
-            <label>Nama Pengguna</label>
-            <input type="text" name="nama_pengguna" class="form-control"
-                   placeholder="Nama Pengguna" required>
-          </div>
-
-          <div class="form-group">
-            <label>Username</label>
-            <input type="text" name="username" class="form-control"
-                   placeholder="Username" required>
-          </div>
-
-          <div class="form-group">
-            <label>Password</label>
-            <input type="password" name="password" class="form-control"
-                   placeholder="Password" required minlength="6">
-          </div>
-
-          <div class="form-group">
-            <label>Level</label>
-            <select name="level" class="form-control" required>
-              <option value="">-- Pilih Level --</option>
-              <option value="Administrator">Administrator</option>
-              <option value="Petugas">Petugas</option>
-            </select>
-          </div>
-
-        </div>
-        <div class="box-footer">
-          <button type="submit" name="Simpan" class="btn btn-info">Simpan</button>
-          <a href="?page=MyApp/data_pengguna" class="btn btn-warning">Batal</a>
-        </div>
-      </form>
+  <div class="box box-primary">
+    <div class="box-header">
+      <a href="?page=MyApp/add_pengguna" class="btn btn-primary">
+        <i class="glyphicon glyphicon-plus"></i> Tambah Data
+      </a>
     </div>
-  </div></div>
+
+    <div class="box-body">
+      <div class="table-responsive">
+        <table id="example1" class="table table-bordered table-striped">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Nama</th>
+              <th>Username</th>
+              <th>Level</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+          <?php
+            $no  = 1;
+            $rs  = $koneksi->query("SELECT id_pengguna, nama_pengguna, username, level
+                                    FROM tb_pengguna
+                                    ORDER BY nama_pengguna");
+            while ($row = $rs->fetch_assoc()):
+          ?>
+            <tr>
+              <td><?= $no++; ?></td>
+              <td><?= htmlspecialchars($row['nama_pengguna']); ?></td>
+              <td><?= htmlspecialchars($row['username']); ?></td>
+              <td><?= htmlspecialchars($row['level']); ?></td>
+              <td>
+                <a class="btn btn-success btn-sm"
+                   href="?page=MyApp/edit_pengguna&kode=<?= $row['id_pengguna']; ?>"
+                   title="Ubah"><i class="glyphicon glyphicon-edit"></i></a>
+
+                <button class="btn btn-danger btn-sm btn-del"
+                        data-id="<?= $row['id_pengguna']; ?>"
+                        data-token="<?= $csrf; ?>"
+                        title="Hapus">
+                  <i class="glyphicon glyphicon-trash"></i>
+                </button>
+              </td>
+            </tr>
+          <?php endwhile; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </section>
+
+<!-- SweetAlert untuk konfirmasi hapus -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+document.querySelectorAll('.btn-del').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id   = btn.dataset.id;
+    const token= btn.dataset.token;
+    Swal.fire({
+      title: 'Hapus pengguna?',
+      text: 'Data tidak bisa dikembalikan!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, hapus'
+    }).then(res => {
+      if (res.isConfirmed) {
+        location = `?page=MyApp/del_pengguna&kode=${id}&csrf=${token}`;
+      }
+    });
+  });
+});
+</script>
