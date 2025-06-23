@@ -46,7 +46,7 @@
     <script src="plugins/datatables/dataTables.bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@9"></script>
     <script src="dist/js/app.min.js"></script>
-    </head>
+</head>
 
 <body class="hold-transition skin-red sidebar-mini">
     <div class="wrapper">
@@ -276,7 +276,11 @@
                             case 'del_tarik': include "petugas/tarik/del_tarik.php"; break;
                             case 'data_tabungan': include "petugas/tabungan/data_tabungan.php"; break;
                             case 'view_tabungan': include "petugas/tabungan/view_tabungan.php"; break;
+                            
+                            // Perbaikan rute untuk Info Kas
                             case 'view_kas': include "petugas/kas/view_kas.php"; break;
+                            case 'data_kas': include "petugas/kas/data_kas.php"; break; // <-- RUTE BARU DITAMBAHKAN
+                            case 'cetak_laporan': include "petugas/laporan/cetak_laporan.php"; break;   
                             case 'laporan': include "petugas/laporan/view_laporan.php"; break;
                             case 'laporan1': include "petugas/laporan/view_laporan1.php"; break;
                             case 'laporan_harian': include "petugas/laporan/view_laporan_harian.php"; break;

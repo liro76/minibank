@@ -1,94 +1,100 @@
-<!-- Content Header (Page header) -->
 <?php
+// data_kas.php
 
-if(isset($_POST["btnCetak"])){
+// inisialisasi
+$setor = 0;
+$tarik = 0;
 
-    $dt1 = $_POST["tgl_1"];
-    $dt2 = $_POST["tgl_2"];
-    
-    $sql = $koneksi->query("SELECT SUM(setor) as Tsetor  from tb_tabungan where jenis='ST' and tgl BETWEEN '$dt1' AND '$dt2'");
+// baca dan sanitize input
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btnCetak'])) {
+  $dt1 = $koneksi->real_escape_string($_POST['tgl_1']);
+  $dt2 = $koneksi->real_escape_string($_POST['tgl_2']);
+
+  // SUM setoran
+  $q1 = "
+    SELECT IFNULL(SUM(setor),0) AS Tsetor
+    FROM tb_tabungan
+    WHERE jenis='ST'
+      AND tgl BETWEEN '$dt1' AND '$dt2'
+  ";
+  $r1 = $koneksi->query($q1);
+  $row1 = $r1->fetch_assoc();
+  $setor = $row1['Tsetor'];
+
+  // SUM tarikan
+  $q2 = "
+    SELECT IFNULL(SUM(tarik),0) AS Ttarik
+    FROM tb_tabungan
+    WHERE jenis='TR'
+      AND tgl BETWEEN '$dt1' AND '$dt2'
+  ";
+  $r2 = $koneksi->query($q2);
+  $row2 = $r2->fetch_assoc();
+  $tarik = $row2['Ttarik'];
 }
-while ($data= $sql->fetch_assoc()) {
-    $setor=$data['Tsetor'];
-}
 
-$sql = $koneksi->query("SELECT SUM(tarik) as Ttarik  from tb_tabungan where jenis='TR' and tgl BETWEEN '$dt1' AND '$dt2'");
-while ($data= $sql->fetch_assoc()) {
-    $tarik=$data['Ttarik'];
-}
-
-// Ambil saldo dari field saldo seluruh siswa
-$sql_saldo = $koneksi->query("SELECT SUM(saldo) as total_saldo FROM tb_siswa");
-$data_saldo = $sql_saldo->fetch_assoc();
-$saldo = $data_saldo['total_saldo'];
+// ambil saldo seluruh siswa
+$q3 = "SELECT IFNULL(SUM(saldo),0) AS total_saldo FROM tb_siswa";
+$r3 = $koneksi->query($q3);
+$row3 = $r3->fetch_assoc();
+$saldo = $row3['total_saldo'];
 ?>
 
-
 <section class="content-header">
-    <h1>
-        Transaksi
-        <small>Info Kas</small>
-    </h1>
-    <ol class="breadcrumb">
-        <li>
-            <a href="index.php">
-                <i class="fa fa-home"></i>
-                <b>Bank Mini</b>
-            </a>
-        </li>
-    </ol>
+  <h1>Transaksi<small>Info Kas</small></h1>
+  <ol class="breadcrumb">
+    <li>
+      <a href="index.php"><i class="fa fa-home"></i><b>Bank Mini</b></a>
+    </li>
+  </ol>
 </section>
-<!-- Main content -->
 
 <section class="content">
-
-    <!-- /.box-header -->
-    <div class="box box-primary">
-        <div class="box-header">
-            Saldo Tabungan (Kas)
-            <div class="box-tools pull-right">
-                <button type="button" class="btn btn-box-tool" data-widget="collapse">
-                    <i class="fa fa-minus"></i>
-                </button>
-                <button type="button" class="btn btn-box-tool" data-widget="remove">
-                    <i class="fa fa-remove"></i>
-                </button>
-            </div>
-        </div>
-        <!-- /.box-header -->
-        <div class="box-body">
-            <div class="table-responsive">
-                <table id="example1" class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            <th>Total Setoran</th>
-                            <th>Total Tarikan</th>
-                            <th>Saldo Tabungan</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-
-                        <tr>
-                            <td>
-                                <a href="?page=data_setor" class="btn btn-success btn-sm">
-                                    <i class="glyphicon glyphicon-info-sign" title="Detail"> </i>
-                                </a>
-                                <?php echo rupiah($setor); ?>
-                            </td>
-                            <td>
-                                <a href="?page=data_tarik" class="btn btn-danger btn-sm">
-                                    <i class="glyphicon glyphicon-info-sign" title="Detail"> </i>
-                                </a>
-                                <?php echo rupiah($tarik); ?>
-                            </td>
-                            <td>
-                                <?php echo rupiah($saldo); ?>
-                            </td>
-                        </tr>
-                    </tbody>
-
-                </table>
-            </div>
-        </div>
+  <div class="box box-primary">
+    <div class="box-header">
+      Saldo Tabungan (Kas)
+      <div class="box-tools pull-right">
+        <button type="button" class="btn btn-box-tool" data-widget="collapse">
+          <i class="fa fa-minus"></i>
+        </button>
+        <button type="button" class="btn btn-box-tool" data-widget="remove">
+          <i class="fa fa-remove"></i>
+        </button>
+      </div>
     </div>
+    <div class="box-body">
+      <div class="table-responsive">
+        <table id="example1" class="table table-bordered table-striped">
+          <thead>
+            <tr>
+              <th>Total Setoran</th>
+              <th>Total Tarikan</th>
+              <th>Saldo Tabungan</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <a href="?page=data_setor"
+                   class="btn btn-success btn-sm"
+                   title="Detail Setoran">
+                  <i class="glyphicon glyphicon-info-sign"></i>
+                </a>
+                <?= rupiah($setor) ?>
+              </td>
+              <td>
+                <a href="?page=data_tarik"
+                   class="btn btn-danger btn-sm"
+                   title="Detail Tarikan">
+                  <i class="glyphicon glyphicon-info-sign"></i>
+                </a>
+                <?= rupiah($tarik) ?>
+              </td>
+              <td><?= rupiah($saldo) ?></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </section>
